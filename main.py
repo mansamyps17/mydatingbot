@@ -3,6 +3,8 @@ import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 import database
+from flask import Flask
+import threading
 
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -105,8 +107,6 @@ def update_bio_only(message):
 # ================= វគ្គចុះឈ្មោះ (Registration Flow) =================
 def start_registration(message):
     user_steps[message.chat.id] = {} 
-    
-    # បង្កើតប៊ូតុងជ្រើសរើសភេទ
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton('ប្រុស 👨'), KeyboardButton('ស្រី 👩'))
     
@@ -164,15 +164,13 @@ def search_people(message):
     show_next_profile(message.chat.id)
 
 def show_next_profile(chat_id):
-    # ទាញយកភេទរបស់អ្នកប្រើប្រាស់ជាមុនសិន
     current_user = database.get_user_by_id(chat_id)
     if not current_user:
         bot.send_message(chat_id, "សូមវាយ /myprofile ដើម្បីចុះឈ្មោះសិន។", reply_markup=ReplyKeyboardRemove())
         return
         
-    current_gender = current_user[0] # យកភេទរបស់គាត់ (ប្រុស ឬ ស្រី)
+    current_gender = current_user[0] 
     
-    # ស្វែងរកអ្នកដែលមានភេទផ្ទុយ
     user = database.get_random_user(chat_id, current_gender)
     if user:
         other_user_id, other_gender, name, age, bio, photo_id = user 
@@ -268,6 +266,22 @@ def handle_match_decision(call):
 def continue_searching(message):
     show_next_profile(message.chat.id)
 
-if __name__ == '__main__':
+
+# ================= ផ្នែកបន្ថែមសម្រាប់ Web Server (Render & UptimeRobot) =================
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot កំពុងដំណើរការយ៉ាងរលូន! (Bot is running)"
+
+def run_bot():
     print("Bot ពេលនេះកំពុងដំណើរការ...")
     bot.infinity_polling()
+
+if __name__ == '__main__':
+    # បើក Bot ឱ្យដើរនៅក្នុង Background
+    threading.Thread(target=run_bot).start()
+    
+    # បើក Web Server សម្រាប់ UptimeRobot
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host="0.0.0.0", port=port)
